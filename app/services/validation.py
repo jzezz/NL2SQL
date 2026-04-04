@@ -1,26 +1,61 @@
 import re
 
 
+# Allowed tables to prevent hallucinated SQL
+ALLOWED_TABLES = {
+    "patients",
+    "doctors",
+    "appointments",
+    "treatments",
+    "invoices"
+}
+
+
+def clean_text(text: str):
+    """
+    Removes markdown and unnecessary formatting from LLM output.
+    """
+
+    if not text:
+        return ""
+
+    # Remove ```sql, ```sqlite etc
+    text = re.sub(r"```[a-zA-Z]*", "", text)
+    text = text.replace("```", "")
+
+    return text.strip()
+
+
 def extract_sql(text: str):
     """
-    Extract SQL from model output reliably.
+    Robust SQL extraction from LLM output.
+    Handles:
+    - markdown
+    - explanations
+    - multiline queries
+    - repeated attempts
     """
 
     if not text:
         return None
 
-    # Remove markdown formatting
-    text = text.replace("```sql", "").replace("```", "")
+    text = clean_text(text)
 
-    # Extract SELECT query
-    match = re.search(r"SELECT[\s\S]*", text, re.IGNORECASE)
+    # Find all SELECT queries
+    matches = re.findall(
+        r"(SELECT[\s\S]+?)(?:;|$)",
+        text,
+        re.IGNORECASE
+    )
 
-    if not match:
+    if not matches:
         return None
 
-    sql = match.group(0).strip()
+    # Take last query (usually most refined)
+    sql = matches[-1].strip()
 
-    # Remove trailing semicolon
+    # Normalize
+    sql = re.sub(r"\s+", " ", sql)
     sql = sql.rstrip(";").strip()
 
     return sql
@@ -28,8 +63,7 @@ def extract_sql(text: str):
 
 def validate_sql(sql: str):
     """
-    Keep validation simple and correct.
-    Do NOT over-restrict.
+    Validates SQL safety and structure.
     """
 
     if not sql:
@@ -45,11 +79,42 @@ def validate_sql(sql: str):
     if " from " not in sql_clean:
         return False
 
-    # Block only dangerous operations
+    # Block destructive queries
     forbidden = ["insert", "update", "delete", "drop", "alter"]
 
     for word in forbidden:
         if word in sql_clean:
+            return False
+
+    return True
+
+
+def contains_valid_tables(sql: str):
+    """
+    Validates that only allowed tables are used.
+    Supports:
+    - JOINs
+    - aliases
+    - subqueries
+    """
+
+    if not sql:
+        return False
+
+    sql_lower = sql.lower()
+
+    # Extract tables after FROM and JOIN
+    tables = re.findall(
+        r"(?:from|join)\s+([a-zA-Z_][a-zA-Z0-9_]*)",
+        sql_lower
+    )
+
+    if not tables:
+        return False
+
+    for table in tables:
+        if table not in ALLOWED_TABLES:
+            print("Invalid table detected:", table)
             return False
 
     return True

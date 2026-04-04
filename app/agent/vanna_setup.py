@@ -47,10 +47,13 @@ def create_agent():
         api_key=api_key
     )
 
-    # Tools are still registered to match assignment architecture
+    # SQLite runner (kept for tool compatibility)
     sql_runner = SqliteRunner(database_path=DB_PATH)
+
+    # Memory (optional but included as per assignment)
     memory = DemoAgentMemory()
 
+    # Tool registry
     tool_registry = ToolRegistry()
 
     tool_registry.register_local_tool(
@@ -73,36 +76,57 @@ def create_agent():
         ["*"]
     )
 
-    # Strong instructions to force SQL-only output
+    # Updated instructions (FIXED SCHEMA + STRONG CONTROL)
     config = AgentConfig(
         name="nl2sql-agent",
         instructions=(
             "You are a SQLite SQL generator.\n\n"
 
-            "You MUST strictly use ONLY the tables and columns listed below.\n"
-            "Do NOT invent or assume any table names.\n\n"
-
-            "ALLOWED TABLES:\n"
-            "- patients(id, name, age, gender)\n"
-            "- doctors(id, name, specialization)\n"
-            "- appointments(id, patient_id, doctor_id, date)\n"
-            "- treatments(id, patient_id, description, cost)\n"
-            "- invoices(id, patient_id, amount, date)\n\n"
+            "Your ONLY job is to return a valid SQL SELECT query.\n\n"
 
             "STRICT RULES:\n"
             "- Output ONLY SQL\n"
+            "- DO NOT explain anything\n"
+            "- DO NOT use markdown\n"
+            "- DO NOT add text before or after SQL\n"
+            "- Query MUST start with SELECT\n\n"
+
+            "DATABASE SCHEMA:\n"
+            "patients(id, first_name, last_name, age, gender)\n"
+            "doctors(id, name, specialization)\n"
+            "appointments(id, patient_id, doctor_id, date)\n"
+            "treatments(id, patient_id, description, cost)\n"
+            "invoices(id, patient_id, amount, date)\n\n"
+
+            "IMPORTANT:\n"
+            "- patients table DOES NOT have a 'name' column\n"
+            "- Use full name as:\n"
+            "  first_name || ' ' || last_name\n\n"
+
+            "RULES:\n"
             "- Use ONLY the tables listed above\n"
-            "- Do NOT use patient_records, transactions, or any other table\n"
-            "- Query MUST start with SELECT\n"
-            "- Do NOT include markdown or explanation\n\n"
+            "- Never invent tables like patient_records or transactions\n"
+            "- Always use correct column names\n\n"
+
+            "QUERY GUIDELINES:\n"
+            "- COUNT(*) for totals\n"
+            "- SUM(amount) for revenue\n"
+            "- Use JOIN when needed\n"
+            "- Use GROUP BY for aggregation\n"
+            "- Use ORDER BY for sorting\n"
+            "- Use LIMIT for top results\n\n"
 
             "EXAMPLES:\n"
-            "Question: How many patients?\n"
-            "Answer: SELECT COUNT(*) FROM patients\n\n"
+            "How many patients?\n"
+            "SELECT COUNT(*) FROM patients\n\n"
 
-            "Question: Total revenue?\n"
-            "Answer: SELECT SUM(amount) FROM invoices\n\n"
-        
+            "List patient names:\n"
+            "SELECT first_name || ' ' || last_name FROM patients\n\n"
+
+            "Total revenue?\n"
+            "SELECT SUM(amount) FROM invoices\n\n"
+
+            "If unsure, return the closest valid SQL using available tables.\n"
         )
     )
 
