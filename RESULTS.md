@@ -142,16 +142,47 @@ For analytical queries, the system also generates visualizations.
 The system automatically generates charts for aggregation queries, improving data interpretability.
 
 ---
+## Additional Test Coverage
 
-## Observations
+The system was tested with over 20 natural language queries covering different scenarios.
 
-- The system consistently generates valid SQL queries
-- Schema grounding prevents hallucinated tables and columns
-- SQL validation ensures safety and correctness
-- Retry mechanism improves reliability
-- Charts enhance analytical understanding
+### Categories Covered
 
----
+- Basic Retrieval
+  - List all doctors
+  - Show all appointments
+
+- Aggregations
+  - Total revenue
+  - Average treatment cost
+
+- Filtering
+  - Patients above age 50
+  - Appointments in last month
+
+- Joins
+  - Revenue per patient
+  - Doctor-wise appointments
+
+- Sorting & Ranking
+  - Top 5 patients by spending
+  - Highest revenue generating treatments
+
+- Edge Cases
+  - Queries with no results
+  - Ambiguous questions rephrased and handled
+
+### Observation
+
+The system successfully handled:
+- Schema-aware query generation
+- Aggregations and joins
+- Real-world analytical questions
+
+Minor inconsistencies were addressed using:
+- Retry strategy
+- SQL validation
+- Schema grounding
 
 ## Conclusion
 
