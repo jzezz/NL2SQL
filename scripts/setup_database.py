@@ -1,4 +1,5 @@
 # Create DB+ dummy data
+import os
 import sqlite3
 import random
 from datetime import datetime, timedelta
@@ -7,6 +8,7 @@ DB_PATH = "data/clinic.db"
 
 
 def create_connection():
+    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     return sqlite3.connect(DB_PATH)
 
 

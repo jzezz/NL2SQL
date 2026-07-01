@@ -30,6 +30,102 @@ class DefaultUserResolver(UserResolver):
 
 
 def create_agent():
+    return create_sql_agent()
+
+
+def _build_llm_service():
+    api_key = os.getenv("GOOGLE_API_KEY")
+    if not api_key:
+        raise ValueError("GOOGLE_API_KEY not found")
+
+    return GeminiLlmService(
+        model="gemini-2.5-flash",
+        api_key=api_key
+    )
+
+
+def _base_agent(config: AgentConfig, llm_service, tool_registry=None):
+    return Agent(
+        config=config,
+        llm_service=llm_service,
+        tool_registry=tool_registry,
+        agent_memory=DemoAgentMemory(),
+        user_resolver=DefaultUserResolver()
+    )
+
+
+def _empty_tool_registry():
+    return ToolRegistry()
+
+
+def create_planner_agent():
+    """
+    Planner agent that classifies the intent and suggests query strategy.
+    """
+
+    if not os.path.exists(DB_PATH):
+        raise FileNotFoundError("Database not found. Run setup_database.py first.")
+
+    llm_service = _build_llm_service()
+
+    config = AgentConfig(
+        name="query-planner",
+        instructions=(
+            "You are a planning agent for an NL2SQL system.\n\n"
+            "Your job is to classify the user question and return JSON only.\n\n"
+            "Return this shape exactly:\n"
+            "{\n"
+            '  "intent": "count|list|aggregate|trend|comparison|lookup|other",\n'
+            '  "needs_chart": true|false,\n'
+            '  "suggested_granularity": "row|day|month|category|none",\n'
+            '  "notes": "short explanation"\n'
+            "}\n\n"
+            "Rules:\n"
+            "- JSON only\n"
+            "- No markdown\n"
+            "- No extra text\n"
+            "- Prefer needs_chart=true for aggregates, trends, and comparisons\n"
+        )
+    )
+
+    return _base_agent(config, llm_service, _empty_tool_registry())
+
+
+def create_verifier_agent():
+    """
+    Verifier agent that reviews SQL before execution.
+    """
+
+    if not os.path.exists(DB_PATH):
+        raise FileNotFoundError("Database not found. Run setup_database.py first.")
+
+    llm_service = _build_llm_service()
+
+    config = AgentConfig(
+        name="sql-verifier",
+        instructions=(
+            "You are a SQL verifier for a SQLite NL2SQL system.\n\n"
+            "Your job is to review SQL and return JSON only.\n\n"
+            "Return this shape exactly:\n"
+            "{\n"
+            '  "approved": true|false,\n'
+            '  "corrected_sql": "SQL string or empty string",\n'
+            '  "reason": "short explanation"\n'
+            "}\n\n"
+            "Rules:\n"
+            "- JSON only\n"
+            "- No markdown\n"
+            "- No extra text\n"
+            "- If the SQL is valid, set approved=true and repeat it in corrected_sql\n"
+            "- If the SQL is invalid, fix only schema-safe issues\n"
+            "- Never allow INSERT, UPDATE, DELETE, DROP, ALTER, or PRAGMA\n"
+        )
+    )
+
+    return _base_agent(config, llm_service, _empty_tool_registry())
+
+
+def create_sql_agent():
     """
     Initialize the Vanna agent.
     The agent is used only for generating SQL, not executing it.
@@ -38,14 +134,7 @@ def create_agent():
     if not os.path.exists(DB_PATH):
         raise FileNotFoundError("Database not found. Run setup_database.py first.")
 
-    api_key = os.getenv("GOOGLE_API_KEY")
-    if not api_key:
-        raise ValueError("GOOGLE_API_KEY not found")
-
-    llm_service = GeminiLlmService(
-        model="gemini-2.5-flash",
-        api_key=api_key
-    )
+    llm_service = _build_llm_service()
 
     # SQLite runner (kept for tool compatibility)
     sql_runner = SqliteRunner(database_path=DB_PATH)
@@ -92,11 +181,11 @@ def create_agent():
             "- Query MUST start with SELECT\n\n"
 
             "DATABASE SCHEMA:\n"
-            "patients(id, first_name, last_name, age, gender)\n"
-            "doctors(id, name, specialization)\n"
-            "appointments(id, patient_id, doctor_id, date)\n"
-            "treatments(id, patient_id, description, cost)\n"
-            "invoices(id, patient_id, amount, date)\n\n"
+            "patients(id, first_name, last_name, email, phone, date_of_birth, gender, city, registered_date)\n"
+            "doctors(id, name, specialization, department, phone)\n"
+            "appointments(id, patient_id, doctor_id, appointment_date, status, notes)\n"
+            "treatments(id, appointment_id, treatment_name, cost, duration_minutes)\n"
+            "invoices(id, patient_id, invoice_date, total_amount, paid_amount, status)\n\n"
 
             "IMPORTANT:\n"
             "- patients table DOES NOT have a 'name' column\n"
@@ -110,7 +199,7 @@ def create_agent():
 
             "QUERY GUIDELINES:\n"
             "- COUNT(*) for totals\n"
-            "- SUM(amount) for revenue\n"
+            "- SUM(total_amount) for revenue\n"
             "- Use JOIN when needed\n"
             "- Use GROUP BY for aggregation\n"
             "- Use ORDER BY for sorting\n"
@@ -124,18 +213,16 @@ def create_agent():
             "SELECT first_name || ' ' || last_name FROM patients\n\n"
 
             "Total revenue?\n"
-            "SELECT SUM(amount) FROM invoices\n\n"
+            "SELECT SUM(total_amount) FROM invoices\n\n"
 
             "If unsure, return the closest valid SQL using available tables.\n"
         )
     )
 
-    agent = Agent(
+    return Agent(
         config=config,
         llm_service=llm_service,
         tool_registry=tool_registry,
         agent_memory=memory,
         user_resolver=DefaultUserResolver()
     )
-
-    return agent

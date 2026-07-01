@@ -1,244 +1,204 @@
-# NL2SQL System using Vanna AI
+# NL2SQL Vanna AI
 
-## Overview
+A modern natural-language-to-SQL application built with FastAPI, Vanna AI, Gemini, and SQLite. The app lets you ask questions in plain English, generates SQL, verifies the query, executes it against a clinic database, and returns structured results with an optional chart preview.
 
-This project implements a Natural Language to SQL (NL2SQL) system using Vanna AI.  
-The system allows users to ask questions in plain English and automatically converts them into SQL queries, executes them on a SQLite database, and returns structured results along with optional visualizations.
+## What It Does
 
-The system is designed to be robust, accurate, and aligned with real-world database querying scenarios.
-
----
-
-## Features
-
-- Convert natural language questions into SQL queries
-- Execute queries on a SQLite database
-- Return structured results (columns, rows, row count)
-- Generate charts for analytical queries
-- Handle hallucinations and schema mismatches
-- Retry mechanism for improving SQL generation
-- Validation layer to ensure safe SQL execution
-
----
+- Converts plain English questions into SQL
+- Uses a planner agent, SQL agent, and verifier agent
+- Runs safe `SELECT` queries against SQLite
+- Returns rows, columns, row count, and a short summary
+- Generates lightweight chart data for analytics questions
+- Includes a clean web UI and FastAPI docs
 
 ## Tech Stack
 
-- Python 3.10
+- Python 3.10+
 - FastAPI
 - Vanna AI
-- Google Gemini (LLM)
+- Google Gemini
 - SQLite
-- Plotly (for visualization)
+- HTML, CSS, and vanilla JavaScript for the UI
 
----
+## Project Layout
 
-## Project Structure
-```
-nl2sql-vanna-ai/
-│
-├── app/
-│ ├── main.py # FastAPI entry point
-│ ├── agent/
-│ │ └── vanna_setup.py # Vanna agent configuration
-│ ├── api/
-│ │ └── routes.py # API endpoints (/chat)
-│ ├── core/
-│ │ └── database.py # Database connection
-│ ├── services/
-│ │ ├── nl2sql_service.py # NL → SQL → Execution pipeline
-│ │ ├── validation.py # SQL extraction & validation
-│ │ └── chart_service.py # Chart generation
-│
-├── scripts/
-│ ├── setup_database.py
-│ └── seed_memory.py
-│
-├── data/
-│ └── clinic.db
-│
-├── tests/
-│
-├── requirements.txt
-├── README.md
-```
+- `app/main.py` - FastAPI entry point
+- `app/api/ui.py` - Web UI served at `/`
+- `app/api/routes.py` - `/chat` API endpoint
+- `app/api/health.py` - health check endpoint
+- `app/agent/vanna_setup.py` - agent setup and LLM configuration
+- `app/services/agent_pipeline.py` - planner, SQL generator, and verifier flow
+- `app/services/nl2sql_service.py` - end-to-end question handling
+- `scripts/setup_database.py` - database creation and seeding
+- `data/clinic.db` - generated SQLite database
 
----
+## Features
 
-## Setup Instructions
+- Natural language question answering
+- Multi-agent flow for better reliability
+- SQL validation and correction
+- SQLite-backed clinic schema
+- Interactive browser UI
+- Swagger/OpenAPI docs
+- Fast local development workflow
+
+## Prerequisites
+
+- Python 3.10 or newer
+- Git
+- A Google Gemini API key
+
+## Local Setup
 
 ### 1. Clone the repository
-git clone https://github.com/iYashrajPatil/nlp2sql-vanna-ai
-```
+
+```powershell
+git clone https://github.com/iYashrajPatil/nlp2sql-vanna-ai.git
 cd nl2sql-vanna-ai
 ```
 
----
+### 2. Create a virtual environment
 
-### 2. Create virtual environment (Windows PowerShell)
-```
+```powershell
 python -m venv venv
-venv\Scripts\activate
+venv\Scripts\Activate.ps1
 ```
 
----
+If PowerShell blocks activation:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+venv\Scripts\Activate.ps1
+```
 
 ### 3. Install dependencies
-```
+
+```powershell
 pip install -r requirements.txt
 ```
 
----
+### 4. Create `.env`
 
-### 4. Configure environment variables
+Create a file named `.env` in the project root:
 
-Create a `.env` file in the root:
-GOOGLE_API_KEY=your_gemini_api_key
-
----
-
-### 5. Setup database
+```env
+GOOGLE_API_KEY=your_gemini_api_key_here
 ```
+
+Optional:
+
+```env
+DATABASE_PATH=data/clinic.db
+```
+
+### 5. Create the database
+
+```powershell
 python scripts/setup_database.py
 ```
----
 
-### 6. Run the application
-```
+### 6. Run the backend
+
+```powershell
 uvicorn app.main:app --reload
 ```
 
-Open:http://127.0.0.1:8000/docs
+### 7. Open the app
 
+- UI: http://127.0.0.1:8000/
+- API docs: http://127.0.0.1:8000/docs
+- Health check: http://127.0.0.1:8000/health
 
----
-
-## API Usage
-
-### POST `/chat`
-
-#### Request:
-```json
-{
-  "question": "Show revenue per patient"
-}
-```
-## Response
-```json
-{
-  "success": true,
-  "sql_query": "...",
-  "columns": [...],
-  "rows": [...],
-  "chart": {...}
-}
-```
----
-## Example Queries
+## Example Questions
 
 - How many patients do we have?
-- List all patients
-- Show all appointments
-- Total revenue generated
-- Show revenue per patient
+- List all doctors
+- Show total revenue
 - Top 5 patients by spending
+- Show appointments for this month
 
----
-## Challenges Faced & Solutions
+## How To Push To GitHub
 
-### 1. LLM Hallucination
-- Issue: The model sometimes generated non-existent tables such as `transactions` or `patient_records`.
-- Solution:
-  - Added strict schema definitions in the prompt
-  - Implemented table validation to allow only known tables
-  - Added a correction layer to replace common hallucinated table names
+If the remote is already configured, use:
 
----
+```powershell
+git status
+git add .
+git commit -m "Polish UI and add agent pipeline"
+git push origin main
+```
 
-### 2. Schema Mismatch
-- Issue: The model used incorrect column names like `amount` instead of actual columns such as `total_amount` or `paid_amount`.
-- Solution:
-  - Updated prompt with exact database schema
-  - Added runtime SQL correction logic to fix column mismatches
-  - Verified schema using SQLite PRAGMA queries
+If you want to verify the remote first:
 
----
+```powershell
+git remote -v
+```
 
-### 3. Inconsistent SQL Output
-- Issue: The model sometimes returned explanations or markdown instead of raw SQL.
-- Solution:
-  - Enforced strict instruction: "Output ONLY SQL"
-  - Implemented retry mechanism with stricter prompts
-  - Built a robust SQL extraction function to clean responses
+## Deploying To Vercel
 
----
+Important: this project uses SQLite, so Vercel is best for a demo or light usage. For production workloads, a managed external database is a better fit.
 
-### 4. SQL Extraction Issues
-- Issue: SQL queries were not always correctly extracted from model responses.
-- Solution:
-  - Implemented regex-based extraction for multi-line queries
-  - Removed markdown and extra text before processing
-  - Selected the last valid SQL query from multiple attempts
+### Vercel setup steps
 
----
+1. Push your latest code to GitHub.
+2. Go to [Vercel](https://vercel.com/) and create a new project.
+3. Import the GitHub repository `nlp2sql-vanna-ai`.
+4. Vercel should detect the Python/FastAPI app from `app/main.py` because the file exports a FastAPI instance named `app`.
+5. Add the environment variable:
+   - `GOOGLE_API_KEY`
+6. In the project settings, set the Build Command to:
 
-### 5. SQL Safety and Validation
-- Issue: Risk of unsafe queries (INSERT, DELETE, etc.) or invalid syntax.
-- Solution:
-  - Allowed only SELECT queries
-  - Blocked destructive keywords (INSERT, UPDATE, DELETE, DROP, ALTER)
-  - Ensured queries contain valid structure (SELECT + FROM)
+```bash
+python scripts/setup_database.py
+```
 
----
+7. Keep the output directory empty.
+8. Deploy the project.
+9. After deployment, test:
+   - `/` for the UI
+   - `/docs` for the API docs
+   - `/health` for the health check
 
-### 6. Retry and Reliability
-- Issue: Model responses were sometimes inconsistent.
-- Solution:
-  - Implemented multi-attempt SQL generation strategy
-  - Used progressively stricter prompts in retries
-  - Accepted only validated SQL outputs
+### Notes about Vercel
 
----
+- Vercel Python support runs FastAPI as a serverless function.
+- The FastAPI app is configured with `vercel.json` to allow a longer function duration.
+- Because serverless deployments are stateless, SQLite is best treated as a demo database unless you move to an external hosted database.
 
-## Design Decisions
+## Vercel Config
 
-- Used Vanna AI for structured agent-based SQL generation
-- Separated system into clear layers:
-  - Agent (SQL generation)
-  - Validation (safety and correctness)
-  - Execution (database interaction)
-- Added deterministic validation and correction to reduce dependency on LLM accuracy
-- Used SQLite for simplicity and portability
+The repo includes `vercel.json` with a `maxDuration` setting for the FastAPI function.
 
----
+## Troubleshooting
 
-## Limitations
+### Missing Gemini key
 
-- Complex queries with deep nesting may still require multiple attempts
-- System performance depends on LLM response quality
-- Chart generation is basic and can be enhanced further
-- No user authentication or multi-user support
+Make sure `.env` contains `GOOGLE_API_KEY` locally or the same variable is set in Vercel.
 
----
+### Database missing
 
-## Future Improvements
+Run:
 
-- Add caching for repeated queries
-- Improve visualization intelligence and chart selection
-- Support multiple database types (PostgreSQL, MySQL)
-- Add user authentication and session management
-- Improve handling of complex analytical queries
+```powershell
+python scripts/setup_database.py
+```
 
----
+### Dependency issues
 
-## Conclusion
+Run:
 
-This project demonstrates a robust NL2SQL system that converts natural language into executable SQL queries with high reliability.
+```powershell
+pip install -r requirements.txt
+```
 
-Key strengths of the system:
-- Strong schema grounding to reduce hallucination
-- SQL validation and correction layer for safety
-- Reliable execution pipeline with retry logic
-- Clean API interface with optional visualization support
+### API not responding
 
-The system is designed with real-world considerations and provides a solid foundation for scalable AI-driven data querying applications.
+Restart the server:
 
+```powershell
+uvicorn app.main:app --reload
+```
+
+## Summary
+
+This project demonstrates a practical NL2SQL system with a clean UI, a multi-agent backend, SQL safety checks, and a ready-to-run clinic database.

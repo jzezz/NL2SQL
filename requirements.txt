@@ -1,5 +1,4 @@
-vanna
+vanna[gemini]
 fastapi
 uvicorn
 python-dotenv
-google-generativeai

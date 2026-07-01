@@ -1,7 +1,6 @@
-from vanna.core.user import User
-from app.agent.vanna_setup import create_agent
 from app.core.database import get_connection
-from app.services.validation import extract_sql, validate_sql, contains_valid_tables
+from app.services.agent_pipeline import plan_question, generate_sql, verify_sql
+from app.services.validation import validate_sql, contains_valid_tables
 from app.services.chart_service import generate_chart
 
 
@@ -15,17 +14,13 @@ def generate_summary(question: str, rows: list):
 
     q = question.lower()
 
-    # Count queries
     if "how many" in q or "count" in q:
         return f"Total count is {rows[0][0]}."
 
-    # Revenue / aggregation
     if "revenue" in q or "sum" in q:
-        # If grouped result (multiple rows)
         if len(rows) > 1:
             return f"Showing revenue distribution for {len(rows)} patients."
-        else:
-            return f"Total revenue is {rows[0][0]}."
+        return f"Total revenue is {rows[0][0]}."
 
     return f"Query returned {len(rows)} rows."
 
@@ -38,92 +33,62 @@ def fix_common_sql_errors(sql: str) -> str:
     if not sql:
         return sql
 
-    # Fix hallucinated tables
     sql = sql.replace("patient_records", "patients")
     sql = sql.replace("transactions", "invoices")
-
-    # Fix patient name issue
     sql = sql.replace("p.name", "p.first_name || ' ' || p.last_name")
-
-    # Fix ONLY incorrect amount usage (safe replacements)
     sql = sql.replace("i.amount", "i.total_amount")
-    sql = sql.replace(" amount ", " total_amount ")
 
     return sql
 
 
-async def generate_sql(question: str, agent, user):
-    """
-    Generates SQL using Vanna agent with retry + correction.
-    """
-
-    schema_context = (
-        "Database Schema:\n"
-        "patients(id, first_name, last_name, age, gender)\n"
-        "doctors(id, name, specialization)\n"
-        "appointments(id, patient_id, doctor_id, date)\n"
-        "treatments(id, patient_id, description, cost)\n"
-        "invoices(id, patient_id, invoice_date, total_amount, paid_amount, status)\n\n"
-    )
-
-    attempts = [
-        schema_context + f"Return ONLY SQL.\nQuestion: {question}",
-        schema_context + f"STRICT: Only SQL. No explanation.\nQuestion: {question}",
-        schema_context + f"Use ONLY given tables. No hallucination.\nQuestion: {question}",
-    ]
-
-    last_response = ""
-
-    for attempt in attempts:
-        try:
-            stream = agent.send_message(user, attempt)
-        except Exception as e:
-            print("LLM ERROR:", str(e))
-            return None, str(e)
-
-        response_text = ""
-
-        async for chunk in stream:
-            if hasattr(chunk, "simple_component") and chunk.simple_component:
-                response_text += getattr(chunk.simple_component, "text", "")
-
-        last_response = response_text
-
-        sql = extract_sql(response_text)
-
-        print("\nMODEL OUTPUT:\n", response_text)
-        print("EXTRACTED SQL:\n", sql)
-
-        if not sql:
-            continue
-
-        sql = sql.strip().rstrip(";")
-
-        # Apply correction layer
-        sql = fix_common_sql_errors(sql)
-
-        # Validate
-        if validate_sql(sql) and contains_valid_tables(sql):
-            return sql, response_text
-
-    return None, last_response
-
-
 async def process_question(question: str):
     """
-    Full NL → SQL → Execution pipeline.
+    Full NL -> Plan -> SQL -> Verify -> Execute pipeline.
     """
 
-    agent = create_agent()
-    user = User(id="default_user")
-
-    sql, model_output = await generate_sql(question, agent, user)
+    plan, planner_output = await plan_question(question)
+    sql, model_output = await generate_sql(question, plan)
 
     if not sql:
         return {
             "success": False,
             "error": "Model failed to generate valid SQL",
-            "model_output": model_output
+            "model_output": model_output,
+            "plan": plan,
+            "planner_output": planner_output,
+        }
+
+    sql = fix_common_sql_errors(sql.strip().rstrip(";"))
+
+    verification, verifier_output = await verify_sql(question, sql, plan)
+    corrected_sql = (verification or {}).get("corrected_sql") or sql
+    corrected_sql = fix_common_sql_errors(corrected_sql.strip().rstrip(";"))
+
+    if verification and not verification.get("approved", False):
+        if validate_sql(corrected_sql) and contains_valid_tables(corrected_sql):
+            sql = corrected_sql
+        else:
+            return {
+                "success": False,
+                "error": verification.get("reason", "Verifier rejected the SQL"),
+                "sql_query": corrected_sql,
+                "plan": plan,
+                "planner_output": planner_output,
+                "verification": verification,
+                "verifier_output": verifier_output,
+            }
+    else:
+        sql = corrected_sql
+
+    if not (validate_sql(sql) and contains_valid_tables(sql)):
+        return {
+            "success": False,
+            "error": "SQL failed validation after verification",
+            "sql_query": sql,
+            "plan": plan,
+            "planner_output": planner_output,
+            "verification": verification,
+            "verifier_output": verifier_output,
         }
 
     try:
@@ -140,7 +105,7 @@ async def process_question(question: str):
         conn.close()
 
         message = generate_summary(question, rows)
-        chart = generate_chart(columns, rows, question)
+        chart = generate_chart(columns, rows, question) if plan.get("needs_chart", True) else None
 
         return {
             "success": True,
@@ -150,12 +115,20 @@ async def process_question(question: str):
             "columns": columns,
             "rows": rows,
             "row_count": len(rows),
-            "chart": chart
+            "chart": chart,
+            "plan": plan,
+            "planner_output": planner_output,
+            "verification": verification,
+            "verifier_output": verifier_output,
         }
 
     except Exception as e:
         return {
             "success": False,
             "error": str(e),
-            "sql_query": sql
+            "sql_query": sql,
+            "plan": plan,
+            "planner_output": planner_output,
+            "verification": verification,
+            "verifier_output": verifier_output,
         }
