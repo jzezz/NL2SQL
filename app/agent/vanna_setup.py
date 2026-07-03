@@ -18,7 +18,8 @@ from vanna.integrations.google import GeminiLlmService
 
 load_dotenv()
 
-DB_PATH = "data/clinic.db"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.normpath(os.path.join(BASE_DIR, "..", "data", "clinic.db"))
 
 
 class DefaultUserResolver(UserResolver):
