@@ -27,7 +27,7 @@ def _build_llm_service():
         raise ValueError("GOOGLE_API_KEY not found")
 
     return GeminiLlmService(
-        model="gemini-1.5-flash",
+        model="gemini-2.0-flash",
         api_key=api_key
     )
 
