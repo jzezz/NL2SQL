@@ -1,32 +1,17 @@
 import os
 from dotenv import load_dotenv
 
-from vanna import Agent, AgentConfig
-from vanna.core.registry import ToolRegistry
-from vanna.core.user import UserResolver, User
-
-from vanna.tools import RunSqlTool, VisualizeDataTool
-from vanna.tools.agent_memory import (
-    SaveQuestionToolArgsTool,
-    SearchSavedCorrectToolUsesTool
-)
-
-from vanna.integrations.sqlite import SqliteRunner
-from vanna.integrations.local.agent_memory import DemoAgentMemory
-from vanna.integrations.google import GeminiLlmService
+from app.core.config import settings
 
 
 load_dotenv()
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.normpath(os.path.join(BASE_DIR, "..", "data", "clinic.db"))
+DB_PATH = settings.DATABASE_PATH
 
 
-class DefaultUserResolver(UserResolver):
-    """
-    Minimal async resolver required by Vanna.
-    """
-    async def resolve_user(self, request_context=None) -> User:
+class DefaultUserResolver:
+    async def resolve_user(self, request_context=None):
+        from vanna.core.user import User
         return User(id="default_user")
 
 
@@ -35,17 +20,22 @@ def create_agent():
 
 
 def _build_llm_service():
-    api_key = os.getenv("GOOGLE_API_KEY")
+    from vanna.integrations.google import GeminiLlmService
+
+    api_key = settings.GOOGLE_API_KEY
     if not api_key:
         raise ValueError("GOOGLE_API_KEY not found")
 
     return GeminiLlmService(
-        model="gemini-2.5-flash",
+        model="gemini-2.0-flash",
         api_key=api_key
     )
 
 
-def _base_agent(config: AgentConfig, llm_service, tool_registry=None):
+def _base_agent(config, llm_service, tool_registry=None):
+    from vanna import Agent
+    from vanna.integrations.local.agent_memory import DemoAgentMemory
+
     return Agent(
         config=config,
         llm_service=llm_service,
@@ -56,19 +46,17 @@ def _base_agent(config: AgentConfig, llm_service, tool_registry=None):
 
 
 def _empty_tool_registry():
+    from vanna.core.registry import ToolRegistry
     return ToolRegistry()
 
 
 def create_planner_agent():
-    """
-    Planner agent that classifies the intent and suggests query strategy.
-    """
-
     if not os.path.exists(DB_PATH):
         raise FileNotFoundError("Database not found. Run setup_database.py first.")
 
     llm_service = _build_llm_service()
 
+    from vanna import AgentConfig
     config = AgentConfig(
         name="query-planner",
         instructions=(
@@ -93,15 +81,12 @@ def create_planner_agent():
 
 
 def create_verifier_agent():
-    """
-    Verifier agent that reviews SQL before execution.
-    """
-
     if not os.path.exists(DB_PATH):
         raise FileNotFoundError("Database not found. Run setup_database.py first.")
 
     llm_service = _build_llm_service()
 
+    from vanna import AgentConfig
     config = AgentConfig(
         name="sql-verifier",
         instructions=(
@@ -127,46 +112,30 @@ def create_verifier_agent():
 
 
 def create_sql_agent():
-    """
-    Initialize the Vanna agent.
-    The agent is used only for generating SQL, not executing it.
-    """
-
     if not os.path.exists(DB_PATH):
         raise FileNotFoundError("Database not found. Run setup_database.py first.")
 
     llm_service = _build_llm_service()
 
-    # SQLite runner (kept for tool compatibility)
-    sql_runner = SqliteRunner(database_path=DB_PATH)
+    from vanna import Agent, AgentConfig
+    from vanna.core.registry import ToolRegistry
+    from vanna.integrations.sqlite import SqliteRunner
+    from vanna.integrations.local.agent_memory import DemoAgentMemory
+    from vanna.tools import RunSqlTool, VisualizeDataTool
+    from vanna.tools.agent_memory import (
+        SaveQuestionToolArgsTool,
+        SearchSavedCorrectToolUsesTool,
+    )
 
-    # Memory (optional but included as per assignment)
+    sql_runner = SqliteRunner(database_path=DB_PATH)
     memory = DemoAgentMemory()
 
-    # Tool registry
     tool_registry = ToolRegistry()
+    tool_registry.register_local_tool(RunSqlTool(sql_runner=sql_runner), ["*"])
+    tool_registry.register_local_tool(VisualizeDataTool(), ["*"])
+    tool_registry.register_local_tool(SaveQuestionToolArgsTool(), ["*"])
+    tool_registry.register_local_tool(SearchSavedCorrectToolUsesTool(), ["*"])
 
-    tool_registry.register_local_tool(
-        RunSqlTool(sql_runner=sql_runner),
-        ["*"]
-    )
-
-    tool_registry.register_local_tool(
-        VisualizeDataTool(),
-        ["*"]
-    )
-
-    tool_registry.register_local_tool(
-        SaveQuestionToolArgsTool(),
-        ["*"]
-    )
-
-    tool_registry.register_local_tool(
-        SearchSavedCorrectToolUsesTool(),
-        ["*"]
-    )
-
-    # Updated instructions (FIXED SCHEMA + STRONG CONTROL)
     config = AgentConfig(
         name="nl2sql-agent",
         instructions=(

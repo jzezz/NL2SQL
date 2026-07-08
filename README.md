@@ -1,15 +1,32 @@
 # NL2SQL Vanna AI
 
-A modern natural-language-to-SQL application built with FastAPI, Vanna AI, Gemini, and SQLite. The app lets you ask questions in plain English, generates SQL, verifies the query, executes it against a clinic database, and returns structured results with an optional chart preview.
+NL2SQL Vanna AI is a FastAPI-based natural language to SQL application. It lets a user ask questions in plain English, turns those questions into SQL with a Vanna/Gemini agent pipeline, verifies the SQL for safety, runs it against a SQLite clinic database, and returns structured results in both JSON and a browser UI.
 
-## What It Does
+## What The Project Does
 
-- Converts plain English questions into SQL
-- Uses a planner agent, SQL agent, and verifier agent
-- Runs safe `SELECT` queries against SQLite
+The project provides an end-to-end NL2SQL workflow:
+
+- Accepts a question in plain English
+- Plans the request with an AI agent
+- Generates SQL from the question
+- Verifies and corrects the SQL before execution
+- Runs the query against a SQLite database
 - Returns rows, columns, row count, and a short summary
-- Generates lightweight chart data for analytics questions
-- Includes a clean web UI and FastAPI docs
+- Produces lightweight chart data when the query is chart-friendly
+- Exposes both a web UI and API docs
+
+## Features
+
+- Natural language to SQL generation
+- Multi-agent pipeline for planning, generation, and verification
+- SQL safety checks to block destructive queries
+- SQLite clinic database with seeded sample data
+- FastAPI backend with `/chat` and `/health` endpoints
+- Simple browser UI at `/`
+- Swagger/OpenAPI docs at `/docs`
+- Clean result formatting with summary text
+- Chart preview support for analytical queries
+- Easy local development setup
 
 ## Tech Stack
 
@@ -18,37 +35,21 @@ A modern natural-language-to-SQL application built with FastAPI, Vanna AI, Gemin
 - Vanna AI
 - Google Gemini
 - SQLite
-- HTML, CSS, and vanilla JavaScript for the UI
+- Vanilla HTML, CSS, and JavaScript
 
-## Project Layout
+## Project Structure
 
 - `app/main.py` - FastAPI entry point
-- `app/api/ui.py` - Web UI served at `/`
-- `app/api/routes.py` - `/chat` API endpoint
-- `app/api/health.py` - health check endpoint
-- `app/agent/vanna_setup.py` - agent setup and LLM configuration
+- `app/api/ui.py` - web UI served at `/`
+- `app/api/routes.py` - `/chat` API route
+- `app/api/health.py` - health check route
+- `app/agent/vanna_setup.py` - agent setup and Gemini configuration
 - `app/services/agent_pipeline.py` - planner, SQL generator, and verifier flow
-- `app/services/nl2sql_service.py` - end-to-end question handling
-- `scripts/setup_database.py` - database creation and seeding
-- `data/clinic.db` - generated SQLite database
+- `app/services/nl2sql_service.py` - full question processing pipeline
+- `scripts/setup_database.py` - creates and seeds the SQLite database
+- `data/clinic.db` - generated database file
 
-## Features
-
-- Natural language question answering
-- Multi-agent flow for better reliability
-- SQL validation and correction
-- SQLite-backed clinic schema
-- Interactive browser UI
-- Swagger/OpenAPI docs
-- Fast local development workflow
-
-## Prerequisites
-
-- Python 3.10 or newer
-- Git
-- A Google Gemini API key
-
-## Local Setup
+## Installation
 
 ### 1. Clone the repository
 
@@ -64,7 +65,7 @@ python -m venv venv
 venv\Scripts\Activate.ps1
 ```
 
-If PowerShell blocks activation:
+If PowerShell blocks activation, run:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
@@ -77,9 +78,9 @@ venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 ```
 
-### 4. Create `.env`
+### 4. Create the `.env` file
 
-Create a file named `.env` in the project root:
+Create a file named `.env` in the project root and add your Gemini API key:
 
 ```env
 GOOGLE_API_KEY=your_gemini_api_key_here
@@ -91,25 +92,27 @@ Optional:
 DATABASE_PATH=data/clinic.db
 ```
 
-### 5. Create the database
+### 5. Set up the database
 
 ```powershell
 python scripts/setup_database.py
 ```
 
-### 6. Run the backend
+### 6. Start the app
 
 ```powershell
 uvicorn app.main:app --reload
 ```
 
-### 7. Open the app
+## Usage
 
-- UI: http://127.0.0.1:8000/
-- API docs: http://127.0.0.1:8000/docs
-- Health check: http://127.0.0.1:8000/health
+Open the app in your browser:
 
-## Example Questions
+- UI: `http://127.0.0.1:8000/`
+- API docs: `http://127.0.0.1:8000/docs`
+- Health check: `http://127.0.0.1:8000/health`
+
+### Example Questions
 
 - How many patients do we have?
 - List all doctors
@@ -117,70 +120,74 @@ uvicorn app.main:app --reload
 - Top 5 patients by spending
 - Show appointments for this month
 
-## How To Push To GitHub
+### API Example
 
-If the remote is already configured, use:
+`POST /chat`
 
-```powershell
-git status
-git add .
-git commit -m "Polish UI and add agent pipeline"
-git push origin main
+Request:
+
+```json
+{
+  "question": "How many patients do we have?"
+}
 ```
 
-If you want to verify the remote first:
+Response:
 
-```powershell
-git remote -v
+```json
+{
+  "success": true,
+  "question": "How many patients do we have?",
+  "message": "Total count is 200.",
+  "sql_query": "SELECT COUNT(*) FROM patients",
+  "columns": ["COUNT(*)"],
+  "rows": [[200]],
+  "row_count": 1,
+  "chart": null
+}
 ```
 
-## Deploying To Vercel
+## Screenshots
 
-Important: this project uses SQLite, so Vercel is best for a demo or light usage. For production workloads, a managed external database is a better fit.
+Add screenshots of the UI and API response here.
 
-### Vercel setup steps
+Suggested files:
 
-1. Push your latest code to GitHub.
-2. Go to [Vercel](https://vercel.com/) and create a new project.
-3. Import the GitHub repository `nlp2sql-vanna-ai`.
-4. Vercel should detect the Python/FastAPI app from `app/main.py` because the file exports a FastAPI instance named `app`.
-5. Add the environment variable:
-   - `GOOGLE_API_KEY`
-6. In the project settings, set the Build Command to:
+- `docs/screenshots/home.png`
+- `docs/screenshots/query-result.png`
+- `docs/screenshots/swagger.png`
 
-```bash
-python scripts/setup_database.py
+Example layout:
+
+```md
+![Home](docs/screenshots/home.png)
+![Query Result](docs/screenshots/query-result.png)
+![Swagger Docs](docs/screenshots/swagger.png)
 ```
 
-7. Keep the output directory empty.
-8. Deploy the project.
-9. After deployment, test:
-   - `/` for the UI
-   - `/docs` for the API docs
-   - `/health` for the health check
+## Development Notes
 
-### Notes about Vercel
-
-- Vercel Python support runs FastAPI as a serverless function.
-- The FastAPI app is configured with `vercel.json` to allow a longer function duration.
-- Because serverless deployments are stateless, SQLite is best treated as a demo database unless you move to an external hosted database.
-
-## Vercel Config
-
-The repo includes `vercel.json` with a `maxDuration` setting for the FastAPI function.
+- The app uses a SQLite database stored in `data/clinic.db`
+- The database is created and seeded by `scripts/setup_database.py`
+- The agent pipeline includes planning, SQL generation, and verification
+- The UI is intentionally minimal and clean rather than flashy
 
 ## Troubleshooting
 
-### Missing Gemini key
-
-Make sure `.env` contains `GOOGLE_API_KEY` locally or the same variable is set in Vercel.
-
-### Database missing
+### Missing database
 
 Run:
 
 ```powershell
 python scripts/setup_database.py
+```
+
+### Missing API key
+
+Make sure `.env` contains:
+
+```env
+GOOGLE_API_KEY=your_gemini_api_key_here
 ```
 
 ### Dependency issues
@@ -191,9 +198,9 @@ Run:
 pip install -r requirements.txt
 ```
 
-### API not responding
+### Server not starting
 
-Restart the server:
+Run:
 
 ```powershell
 uvicorn app.main:app --reload
@@ -201,4 +208,4 @@ uvicorn app.main:app --reload
 
 ## Summary
 
-This project demonstrates a practical NL2SQL system with a clean UI, a multi-agent backend, SQL safety checks, and a ready-to-run clinic database.
+NL2SQL Vanna AI is a practical AI-assisted SQL querying system that combines a simple UI, a safe execution pipeline, and multi-agent reasoning to make database querying easier for non-technical users.

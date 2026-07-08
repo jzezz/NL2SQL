@@ -1,8 +1,6 @@
 import json
 import re
 
-from vanna.core.user import User
-
 from app.agent.vanna_setup import (
     create_planner_agent,
     create_sql_agent,
@@ -44,6 +42,7 @@ def _extract_json(text: str):
 
 
 async def _run_agent(agent, prompt: str):
+    from vanna.core.user import User
     user = User(id="default_user")
     stream = agent.send_message(user, prompt)
     return await _extract_text_from_stream(stream)
@@ -66,6 +65,7 @@ async def plan_question(question: str):
 
 async def generate_sql(question: str, plan: dict | None = None):
     agent = create_sql_agent()
+    from vanna.core.user import User
     user = User(id="default_user")
 
     schema_context = (
