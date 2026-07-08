@@ -13,40 +13,42 @@ router = APIRouter()
 def health():
     db_ok = os.path.exists(settings.DATABASE_PATH)
     api_key_set = bool(settings.GOOGLE_API_KEY)
+    llm_key_set = bool(settings.LLM_API_KEY)
 
     return {
         "status": "ok",
         "database": "connected" if db_ok else "not_found",
-        "api_key_configured": api_key_set,
+        "llm_provider": settings.LLM_PROVIDER,
+        "api_key_configured": api_key_set or llm_key_set,
         "vercel": settings.ON_VERCEL,
     }
 
 
-@router.get("/test-gemini")
-async def test_gemini():
+@router.get("/test-llm")
+async def test_llm():
     try:
-        from google import genai
+        from app.agent.vanna_setup import _build_llm_service
 
-        client = genai.Client(api_key=settings.GOOGLE_API_KEY)
+        llm = _build_llm_service()
 
-        models_to_try = [
-            "gemini-1.5-flash",
-            "gemini-2.0-flash",
-            "gemini-2.0-flash-exp",
-        ]
+        from vanna import LlmRequest
 
-        results = {}
-        for model in models_to_try:
-            try:
-                response = client.models.generate_content(
-                    model=model,
-                    contents="Say OK",
-                )
-                results[model] = "works"
-            except Exception as e:
-                results[model] = str(e)[:200]
+        resp = llm.send_request(
+            LlmRequest(
+                system_prompt="Reply with just the word OK",
+                messages=[],
+            )
+        )
 
-        return {"api_key_set": bool(settings.GOOGLE_API_KEY), "models": results}
+        return {
+            "provider": settings.LLM_PROVIDER,
+            "model": settings.LLM_MODEL or "default",
+            "status": "works",
+            "response": resp.content[:200],
+        }
 
     except Exception as e:
-        return {"api_key_set": bool(settings.GOOGLE_API_KEY), "error": str(e)[:500]}
+        return {
+            "provider": settings.LLM_PROVIDER,
+            "error": str(e)[:500],
+        }
