@@ -50,9 +50,10 @@ async def process_question(question: str):
     sql, model_output = await generate_sql(question, plan)
 
     if not sql:
+        error_detail = model_output or "Unknown error"
         return {
             "success": False,
-            "error": "Model failed to generate valid SQL",
+            "error": f"Model failed: {error_detail[:500]}",
             "model_output": model_output,
             "plan": plan,
             "planner_output": planner_output,
