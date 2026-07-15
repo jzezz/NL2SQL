@@ -1,211 +1,185 @@
 # NL2SQL Vanna AI
 
-NL2SQL Vanna AI is a FastAPI-based natural language to SQL application. It lets a user ask questions in plain English, turns those questions into SQL with a Vanna/Gemini agent pipeline, verifies the SQL for safety, runs it against a SQLite clinic database, and returns structured results in both JSON and a browser UI.
-
-## What The Project Does
-
-The project provides an end-to-end NL2SQL workflow:
-
-- Accepts a question in plain English
-- Plans the request with an AI agent
-- Generates SQL from the question
-- Verifies and corrects the SQL before execution
-- Runs the query against a SQLite database
-- Returns rows, columns, row count, and a short summary
-- Produces lightweight chart data when the query is chart-friendly
-- Exposes both a web UI and API docs
+A natural language to SQL interface for querying a clinic database using Vanna AI and LLMs. Ask questions in plain English and get SQL queries, results, and charts.
 
 ## Features
 
-- Natural language to SQL generation
-- Multi-agent pipeline for planning, generation, and verification
-- SQL safety checks to block destructive queries
-- SQLite clinic database with seeded sample data
-- FastAPI backend with `/chat` and `/health` endpoints
-- Simple browser UI at `/`
-- Swagger/OpenAPI docs at `/docs`
-- Clean result formatting with summary text
-- Chart preview support for analytical queries
-- Easy local development setup
+- **Natural Language Queries**: Ask questions like "How many patients do we have?" or "Show total revenue by month"
+- **Automatic SQL Generation**: Uses LLMs to generate safe, validated SQL
+- **Interactive Web UI**: Clean, responsive interface for querying and viewing results
+- **Data Visualization**: Automatic chart generation (bar, line, pie) for numeric results
+- **Multi-LLM Support**: Works with Google Gemini, Groq, or OpenAI
+- **Production Ready**: Deployed on Vercel with serverless SQLite
 
 ## Tech Stack
 
-- Python 3.10+
-- FastAPI
-- Vanna AI
-- Google Gemini
-- SQLite
-- Vanilla HTML, CSS, and JavaScript
+- **Backend**: FastAPI, Python 3.11+
+- **LLM Integration**: Vanna AI (supports Gemini, Groq, OpenAI)
+- **Database**: SQLite with synthetic clinic data
+- **Frontend**: Vanilla HTML/CSS/JS (no build step)
+- **Deployment**: Vercel (serverless)
 
-## Project Structure
+## Screenshots
 
-- `app/main.py` - FastAPI entry point
-- `app/api/ui.py` - web UI served at `/`
-- `app/api/routes.py` - `/chat` API route
-- `app/api/health.py` - health check route
-- `app/agent/vanna_setup.py` - agent setup and Gemini configuration
-- `app/services/agent_pipeline.py` - planner, SQL generator, and verifier flow
-- `app/services/nl2sql_service.py` - full question processing pipeline
-- `scripts/setup_database.py` - creates and seeds the SQLite database
-- `data/clinic.db` - generated database file
+### Home Page
+![Home Page](docs/home%20page.png)
 
-## Installation
+### SQL Statement
+![SQL Statement](docs/SQl%20statement.png)
 
-### 1. Clone the repository
+### Result Table
+![Result Table](docs/result%20table.png)
 
-```powershell
-git clone https://github.com/iYashrajPatil/nlp2sql-vanna-ai.git
+## Quick Start
+
+### Prerequisites
+
+- Python 3.11+
+- LLM API key (choose one):
+  - **Groq** (free, recommended) — https://console.groq.com
+  - **OpenAI** — https://platform.openai.com
+  - **Google Gemini** — https://aistudio.google.com/apikey
+
+### Local Development
+
+```bash
+# Clone and enter
+git clone https://github.com/your-username/nl2sql-vanna-ai.git
 cd nl2sql-vanna-ai
-```
 
-### 2. Create a virtual environment
-
-```powershell
+# Create virtual environment
 python -m venv venv
-venv\Scripts\Activate.ps1
-```
+source venv/bin/activate  # Windows: venv\Scripts\activate
 
-If PowerShell blocks activation, run:
-
-```powershell
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-venv\Scripts\Activate.ps1
-```
-
-### 3. Install dependencies
-
-```powershell
+# Install dependencies
 pip install -r requirements.txt
-```
 
-### 4. Create the `.env` file
+# Configure environment
+cp .env.example .env
+# Edit .env with your API keys
 
-Create a file named `.env` in the project root and add your Gemini API key:
-
-```env
-GOOGLE_API_KEY=your_gemini_api_key_here
-```
-
-Optional:
-
-```env
-DATABASE_PATH=data/clinic.db
-```
-
-### 5. Set up the database
-
-```powershell
+# Initialize database
 python scripts/setup_database.py
-```
 
-### 6. Start the app
-
-```powershell
+# Run server
 uvicorn app.main:app --reload
 ```
 
-## Usage
+Open http://localhost:8000
 
-Open the app in your browser:
+### Environment Variables
 
-- UI: `http://127.0.0.1:8000/`
-- API docs: `http://127.0.0.1:8000/docs`
-- Health check: `http://127.0.0.1:8000/health`
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `LLM_PROVIDER` | Yes | `groq`, `openai`, or `google` |
+| `LLM_API_KEY` | Yes* | API key for chosen provider |
+| `LLM_MODEL` | No | Model name (defaults per provider) |
+| `LLM_BASE_URL` | No | Custom base URL (for proxies) |
+| `GOOGLE_API_KEY` | Yes* | Required if `LLM_PROVIDER=google` |
+| `DATABASE_PATH` | No | SQLite path (default: `data/clinic.db`) |
 
-### Example Questions
+*Only required for the selected provider.
 
-- How many patients do we have?
-- List all doctors
-- Show total revenue
-- Top 5 patients by spending
-- Show appointments for this month
-
-### API Example
-
-`POST /chat`
-
-Request:
-
-```json
-{
-  "question": "How many patients do we have?"
-}
+**Example `.env` for Groq:**
+```env
+LLM_PROVIDER=groq
+LLM_API_KEY=gsk_your_groq_key
+LLM_MODEL=llama3-8b-8192
 ```
 
-Response:
+## Deploy to Vercel
 
+1. Push this repo to GitHub
+2. Import project in Vercel
+3. Add Environment Variables in Vercel Dashboard → Settings → Environment Variables:
+   - `LLM_PROVIDER` = `groq`
+   - `LLM_API_KEY` = `gsk_...`
+3. Deploy
+
+## API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/` | Web UI |
+| `GET` | `/health` | Health check + diagnostics |
+| `GET` | `/test-llm` | Test LLM connectivity |
+| `POST` | `/chat` | Execute NL query |
+
+### `/chat` Request
+```json
+{ "question": "How many patients?" }
+```
+
+### `/chat` Response
 ```json
 {
   "success": true,
-  "question": "How many patients do we have?",
+  "question": "How many patients?",
   "message": "Total count is 200.",
   "sql_query": "SELECT COUNT(*) FROM patients",
   "columns": ["COUNT(*)"],
   "rows": [[200]],
   "row_count": 1,
-  "chart": null
+  "chart": { "type": "bar", "x": ["Total"], "y": [200], ... }
 }
 ```
 
-## Screenshots
+## Database Schema
 
-Add screenshots of the UI and API response here.
+The app uses a synthetic clinic database with 5 tables:
 
-Suggested files:
+| Table | Rows | Description |
+|-------|------|-------------|
+| `patients` | 200 | Patient demographics |
+| `doctors` | 15 | Doctor info |
+| `appointments` | 500 | Appointment records |
+| `treatments` | 350 | Treatments per appointment |
+| `invoices` | 300 | Billing records |
 
-- `docs/screenshots/home.png`
-- `docs/screenshots/query-result.png`
-- `docs/screenshots/swagger.png`
+## Project Structure
 
-Example layout:
-
-```md
-![Home](docs/screenshots/home.png)
-![Query Result](docs/screenshots/query-result.png)
-![Swagger Docs](docs/screenshots/swagger.png)
+```
+nl2sql-vanna-ai/
+├── app/
+│   ├── main.py              # FastAPI app entry point
+│   ├── api/
+│   │   ├── routes.py        # /chat endpoint
+│   │   ├── health.py        # /health, /test-llm
+│   │   └── ui.py            # Web UI (HTML)
+│   ├── core/
+│   │   ├── config.py        # Settings & env vars
+│   │   └── database.py      # DB connection + initialization
+│   ├── services/
+│   │   ├── nl2sql_service.py    # Main pipeline
+│   │   ├── agent_pipeline.py    # Planner → SQL → Verifier
+│   │   ├── validation.py        # SQL safety checks
+│   │   ├── chart_service.py     # Chart data generation
+│   │   └── openai_llm.py        # Custom OpenAI-compatible LLM service
+│   └── agent/
+│       └── vanna_setup.py       # Vanna agent configuration
+├── scripts/
+│   ├── setup_database.py    # Creates DB + synthetic data
+│   └── seed_memory.py       # Optional Vanna memory seeding
+├── vercel.json              # Vercel deployment config
+├── requirements.txt
+└── .env.example
 ```
 
-## Development Notes
+## LLM Providers Comparison
 
-- The app uses a SQLite database stored in `data/clinic.db`
-- The database is created and seeded by `scripts/setup_database.py`
-- The agent pipeline includes planning, SQL generation, and verification
-- The UI is intentionally minimal and clean rather than flashy
+| Provider | Free Tier | Best Model | Cost |
+|----------|-----------|------------|------|
+| **Groq** | ✅ Generous | `llama3-8b-8192` | Free |
+| OpenAI | ❌ Pay-per-use | `gpt-4o-mini` | ~$0.15/1M tokens |
+| Google Gemini | ✅ Limited | `gemini-2.0-flash` | Free (quota limited) |
 
-## Troubleshooting
+## Contributing
 
-### Missing database
+1. Fork the repo
+2. Create a feature branch
+3. Commit your changes
+4. Open a PR
 
-Run:
+## License
 
-```powershell
-python scripts/setup_database.py
-```
-
-### Missing API key
-
-Make sure `.env` contains:
-
-```env
-GOOGLE_API_KEY=your_gemini_api_key_here
-```
-
-### Dependency issues
-
-Run:
-
-```powershell
-pip install -r requirements.txt
-```
-
-### Server not starting
-
-Run:
-
-```powershell
-uvicorn app.main:app --reload
-```
-
-## Summary
-
-NL2SQL Vanna AI is a practical AI-assisted SQL querying system that combines a simple UI, a safe execution pipeline, and multi-agent reasoning to make database querying easier for non-technical users.
+MIT License - feel free to use for any purpose.
